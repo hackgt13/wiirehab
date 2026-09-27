@@ -40,3 +40,8 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px currentColor; }
+  50% { opacity: 0.4; box-shadow: 0 0 2px currentColor; }
+}

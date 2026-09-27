@@ -8,6 +8,14 @@ import { LiveReadings } from '../../ui/LiveReadings'
 import { SessionTrendChart } from '../../ui/SessionTrendChart'
 import { VisitNotes } from '../../ui/VisitNotes'
 import { PatientRelay } from '../../ui/PatientRelay'
+import { ExpertChat } from '../../ui/ExpertChat'
+import { PlanVersioning } from '../../ui/PlanVersioning'
+import { CoachFeed } from '../../ui/CoachFeed'
+import { ReplayMoments } from '../../ui/ReplayMoments'
+import { KeyMeasures } from '../../ui/KeyMeasures'
+import { DataQuality } from '../../ui/DataQuality'
+import { Adherence } from '../../ui/Adherence'
+import { TriggerCard } from '../../ui/TriggerCard'
 import type { PatientStatus } from '../../data/types'
 
 // ── Status badge styles ───────────────────────────────────────────────────────
@@ -97,7 +105,7 @@ function fmtTs(iso: string): string {
 }
 
 // ── Shared UI primitives ──────────────────────────────────────────────────────
-function SectionLabel({ label }: { label: string }) {
+function SectionLabel({ label, demoTag }: { label: string; demoTag?: string }) {
   return (
     <div className="px-3 pt-3 pb-[5px] border-b border-[#e8e0d8]">
       <span
@@ -106,6 +114,18 @@ function SectionLabel({ label }: { label: string }) {
       >
         {label}
       </span>
+      {demoTag && (
+        <span
+          className="ml-2 text-[9px] font-bold uppercase tracking-wider px-2 py-[2px] rounded-[2px] select-none"
+          style={{
+            backgroundColor: '#FEF3C7',
+            color: '#92400E',
+            border: '1px solid #FCD34D',
+          }}
+        >
+          {demoTag}
+        </span>
+      )}
     </div>
   )
 }
@@ -157,7 +177,7 @@ export function PatientView() {
     )
   }
 
-  const { patient, sessions, latestHandoff: session, plans, rtm } = data
+  const { patient, sessions, latestHandoff: session, schedule, plans, rtm } = data
   const trigger     = evaluateTrigger(sessions, session)
   const nextSession = computeNextSession(sessions)
   const isLive      = wsStatus === 'open'
@@ -167,6 +187,7 @@ export function PatientView() {
   const precautions = PRECAUTIONS[patient.id] ?? []
   const baselineDeg = sessions[0]?.medianPeakDeg ?? 0
   const concerningReplies = concerning(data.replies)
+  const isDemo = patient.id === 'marcus-r'
 
   const trunkLimit = (() => {
     const s = plans[0]?.settings.find(p => p.setting === 'Trunk limit')
@@ -311,13 +332,14 @@ export function PatientView() {
         <span className="text-[11px] text-[#4B5563] font-medium">{session.exercise}</span>
         <div className="flex-1" />
         {[
-          { icon: '▶', label: 'Watch Replay'  },
-          { icon: '◎', label: 'Ask Agent'     },
-          { icon: '✦', label: 'Draft Plan'    },
-          { icon: '≡', label: 'Audit'         },
+          { icon: '▶', label: 'Watch Replay', tab: 'Session Log' },
+          { icon: '◎', label: 'Ask Agent',    tab: 'Expert' },
+          { icon: '✦', label: 'Draft Plan',   tab: 'Plan' },
+          { icon: '≡', label: 'Audit',        tab: '' },
         ].map(btn => (
           <button
             key={btn.label}
+            onClick={btn.tab ? () => setActiveTab(btn.tab) : undefined}
             className="flex items-center gap-1 px-2.5 py-[4px] border border-[#c8cdd4] bg-white text-[11px] text-[#374151] rounded-[2px] hover:bg-[#e6eaef] hover:text-[#1666C0] transition-colors cursor-pointer"
           >
             <span className="text-[#1666C0] text-[10px]">{btn.icon}</span>
@@ -332,128 +354,252 @@ export function PatientView() {
         {/* ── Center column ──────────────────────────────────────────── */}
         <div className="flex-1 min-w-0 bg-white border-r border-[#D1D9E3]">
 
-          {/* What the patient said. Above the clinical alert on purpose: the rule below is a machine reading
-              sensor output, and this is the patient's own account. When they disagree, the physician should
-              have read this first. */}
-          {concerningReplies.length > 0 && (
+          {/* ── Summary ──────────────────────────────────────────────── */}
+          {activeTab === 'Summary' && (
             <>
-              <SectionLabel label="From the Patient" />
-              <div className="px-3 pt-2">
-                <PatientRelay replies={concerningReplies} />
+              {concerningReplies.length > 0 && (
+                <>
+                  <SectionLabel label="From the Patient" demoTag={isDemo ? 'Patient Voice' : undefined} />
+                  <div className="px-3 pt-2">
+                    <PatientRelay replies={concerningReplies} />
+                  </div>
+                </>
+              )}
+
+              <SectionLabel label="Current Session" demoTag={isDemo ? 'VR Headset · Real-Time' : undefined} />
+              <div className="mx-3 my-3">
+                <LiveReadings session={session} wsStatus={wsStatus} baselineDeg={baselineDeg} />
               </div>
-            </>
-          )}
 
-          {/* Live VR readings */}
-          <SectionLabel label="Current Session" />
-          <LiveReadings session={session} wsStatus={wsStatus} baselineDeg={baselineDeg} />
-
-          {/* Clinical alert */}
-          {trigger.fired && (
-            <>
-              <SectionLabel label="Clinical Alert" />
-              <div className="mx-3 my-2 border-l-4 border-[#C67C1A] bg-[#FFFBEB] px-3 py-2 rounded-r-[2px]">
-                <p className="text-[12px] font-semibold text-[#111827] mb-1.5">
-                  Functional change since last review.
-                </p>
-                <div className="flex flex-col gap-1 mb-1.5">
-                  {trigger.conditions.map(c => (
-                    <p key={c.id} className={`text-[11px] leading-snug ${c.met ? 'text-[#166534]' : 'text-[#991B1B]'}`}>
-                      {c.displayLine}
+              {trigger.fired && (
+                <>
+                  <SectionLabel label="Clinical Alert" demoTag={isDemo ? 'Auto Rule' : undefined} />
+                  <div className="mx-3 my-2 border-l-4 border-[#C67C1A] bg-[#FFFBEB] px-3 py-2 rounded-r-[2px]">
+                    <p className="text-[12px] font-semibold text-[#111827] mb-1.5">
+                      Functional change since last review.
                     </p>
+                    <div className="flex flex-col gap-1 mb-1.5">
+                      {trigger.conditions.map(c => (
+                        <p key={c.id} className={`text-[11px] leading-snug ${c.met ? 'text-[#166534]' : 'text-[#991B1B]'}`}>
+                          {c.displayLine}
+                        </p>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-[#6B7280] italic">{trigger.summary}</p>
+                  </div>
+                </>
+              )}
+
+              <SectionLabel label={`Key Measures · ${fmtTs(session.timestamp)}`} demoTag={isDemo ? 'Measured' : undefined} />
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr style={{ backgroundColor: '#f1f3f5' }}>
+                    {['Measure', 'Value', 'Reference', 'Source'].map(h => (
+                      <th
+                        key={h}
+                        className="text-left text-[10px] text-[#6B7280] uppercase tracking-wider px-3 py-[4px] border-b border-r border-[#D1D9E3] last:border-r-0 font-semibold"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {measureRows.map((row, i) => (
+                    <tr
+                      key={i}
+                      className="border-b border-[#E8EDF2] hover:bg-[#F5F8FC]"
+                      style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f7f9fb' }}
+                    >
+                      <td className="px-3 py-[5px] text-[11px] text-[#374151] border-r border-[#E8EDF2]">{row.measure}</td>
+                      <td className={`px-3 py-[5px] text-[12px] font-semibold border-r border-[#E8EDF2] tabular-nums ${row.warn ? 'text-[#C67C1A]' : 'text-[#111827]'}`}>
+                        {row.value}
+                      </td>
+                      <td className="px-3 py-[5px] text-[11px] text-[#6B7280] border-r border-[#E8EDF2]">{row.ref}</td>
+                      <td className="px-3 py-[5px] text-[11px] text-[#6B7280]">{row.src}</td>
+                    </tr>
                   ))}
-                </div>
-                <p className="text-[10px] text-[#6B7280] italic">{trigger.summary}</p>
+                </tbody>
+              </table>
+
+              <SectionLabel label="ROM & Trunk Deviation - All Sessions" demoTag={isDemo ? `${sessions.length} Sessions` : undefined} />
+              <div className="px-3 pt-2 pb-4">
+                <SessionTrendChart
+                  data={sessions}
+                  targetLow={targetBand.low}
+                  targetHigh={targetBand.high}
+                  trunkLimit={trunkLimit}
+                />
+              </div>
+
+              <SectionLabel label="Session History" />
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr style={{ backgroundColor: '#f1f3f5' }}>
+                    {['#', 'Date', 'Valid / Att.', 'Peak ROM', 'Trunk (mean)', 'Source'].map(h => (
+                      <th
+                        key={h}
+                        className="text-left text-[10px] text-[#6B7280] uppercase tracking-wider px-3 py-[4px] border-b border-r border-[#D1D9E3] last:border-r-0 font-semibold whitespace-nowrap"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...sessions].reverse().slice(0, 8).map((s, i) => (
+                    <tr
+                      key={s.session}
+                      className="border-b border-[#E8EDF2] hover:bg-[#F5F8FC]"
+                      style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f7f9fb' }}
+                    >
+                      <td className="px-3 py-[4px] text-[11px] text-[#6B7280] border-r border-[#E8EDF2] tabular-nums">{s.session}</td>
+                      <td className="px-3 py-[4px] text-[11px] text-[#374151] border-r border-[#E8EDF2] tabular-nums whitespace-nowrap">{s.date}</td>
+                      <td className="px-3 py-[4px] text-[11px] font-medium text-[#111827] border-r border-[#E8EDF2] tabular-nums">{s.validReps} / {s.prescribedReps}</td>
+                      <td className="px-3 py-[4px] text-[11px] font-medium text-[#111827] border-r border-[#E8EDF2] tabular-nums">{s.medianPeakDeg}°</td>
+                      <td className={`px-3 py-[4px] text-[11px] font-medium border-r border-[#E8EDF2] tabular-nums ${s.trunkMeanDeg > trunkLimit ? 'text-[#C67C1A]' : 'text-[#111827]'}`}>
+                        {s.trunkMeanDeg > trunkLimit && '⚠ '}{s.trunkMeanDeg}°
+                      </td>
+                      <td className="px-3 py-[4px] text-[11px] text-[#6B7280]">
+                        {s.completed ? (s.synthetic ? 'VR · Simulated' : 'VR · Live') : 'Missed'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <SectionLabel label="Visit Whiteboard" />
+              <div className="px-3 py-3">
+                <VisitNotes />
               </div>
             </>
           )}
 
-          {/* Key measures */}
-          <SectionLabel label={`Key Measures · ${fmtTs(session.timestamp)}`} />
-          <table className="w-full border-collapse">
-            <thead>
-              <tr style={{ backgroundColor: '#f1f3f5' }}>
-                {['Measure', 'Value', 'Reference', 'Source'].map(h => (
-                  <th
-                    key={h}
-                    className="text-left text-[10px] text-[#6B7280] uppercase tracking-wider px-3 py-[4px] border-b border-r border-[#D1D9E3] last:border-r-0 font-semibold"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {measureRows.map((row, i) => (
-                <tr
-                  key={i}
-                  className="border-b border-[#E8EDF2] hover:bg-[#F5F8FC]"
-                  style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f7f9fb' }}
-                >
-                  <td className="px-3 py-[5px] text-[11px] text-[#374151] border-r border-[#E8EDF2]">{row.measure}</td>
-                  <td className={`px-3 py-[5px] text-[12px] font-semibold border-r border-[#E8EDF2] tabular-nums ${row.warn ? 'text-[#C67C1A]' : 'text-[#111827]'}`}>
-                    {row.value}
-                  </td>
-                  <td className="px-3 py-[5px] text-[11px] text-[#6B7280] border-r border-[#E8EDF2]">{row.ref}</td>
-                  <td className="px-3 py-[5px] text-[11px] text-[#6B7280]">{row.src}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {/* ── Flowsheet ────────────────────────────────────────────── */}
+          {activeTab === 'Flowsheet' && (
+            <>
+              <SectionLabel label="Measurement Flowsheet" demoTag={isDemo ? `${sessions.length} Sessions` : undefined} />
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr style={{ backgroundColor: '#f1f3f5' }}>
+                      <th className="text-left text-[10px] text-[#6B7280] uppercase tracking-wider px-3 py-[4px] border-b border-r border-[#D1D9E3] font-semibold sticky left-0 bg-[#f1f3f5]" style={{ minWidth: 130 }}>
+                        Measure
+                      </th>
+                      {sessions.slice(-10).map(s => (
+                        <th key={s.session} className="text-center text-[10px] text-[#6B7280] px-2 py-[4px] border-b border-r border-[#D1D9E3] last:border-r-0 font-semibold whitespace-nowrap" style={{ minWidth: 58 }}>
+                          S{s.session}
+                          <div className="text-[8px] text-[#9CA3AF] font-normal">{s.date.slice(5)}</div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-[#E8EDF2]">
+                      <td className="text-[11px] text-[#374151] px-3 py-[5px] border-r border-[#E8EDF2] font-medium sticky left-0 bg-white">Peak ROM (°)</td>
+                      {sessions.slice(-10).map(s => (
+                        <td key={s.session} className="text-center text-[12px] tabular-nums px-2 py-[5px] border-r border-[#E8EDF2] font-medium text-[#111827]">{s.medianPeakDeg}</td>
+                      ))}
+                    </tr>
+                    <tr className="border-b border-[#E8EDF2]" style={{ backgroundColor: '#f7f9fb' }}>
+                      <td className="text-[11px] text-[#374151] px-3 py-[5px] border-r border-[#E8EDF2] font-medium sticky left-0" style={{ backgroundColor: '#f7f9fb' }}>Trunk mean (°)</td>
+                      {sessions.slice(-10).map(s => (
+                        <td key={s.session} className={`text-center text-[12px] tabular-nums px-2 py-[5px] border-r border-[#E8EDF2] font-medium ${s.trunkMeanDeg > trunkLimit ? 'text-[#C67C1A] bg-[#FFFBEB]' : 'text-[#111827]'}`}>
+                          {s.trunkMeanDeg > trunkLimit && '⚠ '}{s.trunkMeanDeg}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="border-b border-[#E8EDF2]">
+                      <td className="text-[11px] text-[#374151] px-3 py-[5px] border-r border-[#E8EDF2] font-medium sticky left-0 bg-white">Valid / prescribed</td>
+                      {sessions.slice(-10).map(s => (
+                        <td key={s.session} className="text-center text-[12px] tabular-nums px-2 py-[5px] border-r border-[#E8EDF2] font-medium text-[#111827]">{s.validReps}/{s.prescribedReps}</td>
+                      ))}
+                    </tr>
+                    <tr className="border-b border-[#E8EDF2]" style={{ backgroundColor: '#f7f9fb' }}>
+                      <td className="text-[11px] text-[#374151] px-3 py-[5px] border-r border-[#E8EDF2] font-medium sticky left-0" style={{ backgroundColor: '#f7f9fb' }}>Source</td>
+                      {sessions.slice(-10).map(s => (
+                        <td key={s.session} className="text-center text-[10px] px-2 py-[5px] border-r border-[#E8EDF2] text-[#6B7280]">{s.synthetic ? 'Sim' : 'VR'}</td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
-          {/* ROM + trunk trend chart */}
-          <SectionLabel label="ROM & Trunk Deviation - All Sessions" />
-          <div className="px-3 pt-2 pb-4">
-            <SessionTrendChart
-              data={sessions}
-              targetLow={targetBand.low}
-              targetHigh={targetBand.high}
-              trunkLimit={trunkLimit}
-            />
-          </div>
+              <SectionLabel label="Key Measures · Detail" demoTag={isDemo ? 'Measured' : undefined} />
+              <div className="p-4">
+                <KeyMeasures session={session} calibrationBaselineDeg={baselineDeg} trunkLimit={trunkLimit} />
+              </div>
 
-          {/* Session history */}
-          <SectionLabel label="Session History" />
-          <table className="w-full border-collapse">
-            <thead>
-              <tr style={{ backgroundColor: '#f1f3f5' }}>
-                {['#', 'Date', 'Valid / Att.', 'Peak ROM', 'Trunk (mean)', 'Source'].map(h => (
-                  <th
-                    key={h}
-                    className="text-left text-[10px] text-[#6B7280] uppercase tracking-wider px-3 py-[4px] border-b border-r border-[#D1D9E3] last:border-r-0 font-semibold whitespace-nowrap"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[...sessions].reverse().slice(0, 8).map((s, i) => (
-                <tr
-                  key={s.session}
-                  className="border-b border-[#E8EDF2] hover:bg-[#F5F8FC]"
-                  style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f7f9fb' }}
-                >
-                  <td className="px-3 py-[4px] text-[11px] text-[#6B7280] border-r border-[#E8EDF2] tabular-nums">{s.session}</td>
-                  <td className="px-3 py-[4px] text-[11px] text-[#374151] border-r border-[#E8EDF2] tabular-nums whitespace-nowrap">{s.date}</td>
-                  <td className="px-3 py-[4px] text-[11px] font-medium text-[#111827] border-r border-[#E8EDF2] tabular-nums">{s.validReps} / {s.prescribedReps}</td>
-                  <td className="px-3 py-[4px] text-[11px] font-medium text-[#111827] border-r border-[#E8EDF2] tabular-nums">{s.medianPeakDeg}°</td>
-                  <td className={`px-3 py-[4px] text-[11px] font-medium border-r border-[#E8EDF2] tabular-nums ${s.trunkMeanDeg > trunkLimit ? 'text-[#C67C1A]' : 'text-[#111827]'}`}>
-                    {s.trunkMeanDeg > trunkLimit && '⚠ '}{s.trunkMeanDeg}°
-                  </td>
-                  <td className="px-3 py-[4px] text-[11px] text-[#6B7280]">
-                    {s.completed ? (s.synthetic ? 'VR · Simulated' : 'VR · Live') : 'Missed'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              <SectionLabel label="Adherence" />
+              <div className="p-4">
+                <Adherence schedule={schedule} history={sessions} />
+              </div>
 
-          {/* Visit whiteboard: notes for the patient's therapist visit */}
-          <SectionLabel label="Visit Whiteboard" />
-          <div className="px-3 py-3">
-            <VisitNotes />
-          </div>
+              <SectionLabel label="Data Quality" />
+              <div className="p-4">
+                <DataQuality uncertainty={session.uncertainty} />
+              </div>
+            </>
+          )}
+
+          {/* ── Session Log ──────────────────────────────────────────── */}
+          {activeTab === 'Session Log' && (
+            <>
+              <SectionLabel label="Replay Moments" demoTag={isDemo ? 'VR Session' : undefined} />
+              <div className="p-4">
+                {session.replayMoments.length > 0 ? (
+                  <ReplayMoments moments={session.replayMoments} repEvents={session.repEvents} />
+                ) : (
+                  <p className="text-[#9CA3AF] text-sm text-center py-8">No replay moments for this session.</p>
+                )}
+              </div>
+
+              <SectionLabel label="Coach Agent Log" demoTag={isDemo ? 'AI Coach' : undefined} />
+              <div className="p-4">
+                {session.coachLog.length > 0 ? (
+                  <CoachFeed log={session.coachLog} />
+                ) : (
+                  <p className="text-[#9CA3AF] text-sm text-center py-8">No coach events recorded.</p>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ── Expert ───────────────────────────────────────────────── */}
+          {activeTab === 'Expert' && (
+            <>
+              <SectionLabel label="Expert Agent" demoTag={isDemo ? 'AI Agent' : undefined} />
+              <div className="p-4">
+                <ExpertChat patientId={patient.id} conditionCategory={patient.condition} />
+              </div>
+            </>
+          )}
+
+          {/* ── Plan ─────────────────────────────────────────────────── */}
+          {activeTab === 'Plan' && (
+            <>
+              {trigger.fired && (
+                <>
+                  <SectionLabel label="Active Alert" demoTag={isDemo ? 'Auto Rule' : undefined} />
+                  <div className="p-4">
+                    <TriggerCard
+                      trigger={trigger}
+                      patientId={patient.id}
+                      onWatchReplay={() => setActiveTab('Session Log')}
+                      onAskAgent={() => setActiveTab('Expert')}
+                      onDraftPlan={() => {}}
+                    />
+                  </div>
+                </>
+              )}
+
+              <SectionLabel label="Plan Versioning" />
+              <div className="p-4">
+                <PlanVersioning />
+              </div>
+            </>
+          )}
+
         </div>
 
         {/* ── Right Reference Panel ───────────────────────────────────── */}

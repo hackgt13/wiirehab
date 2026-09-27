@@ -1,4 +1,7 @@
+import { useNavigate } from '@tanstack/react-router'
+
 export function TopAppBar() {
+  const navigate = useNavigate()
   const counters = [
     { label: 'Needs Review',    count: 1, color: '#ef4444' },
     { label: 'Missed Sessions', count: 2, color: '#f59e0b' },
@@ -34,12 +37,18 @@ export function TopAppBar() {
       <div className="flex-1" />
 
       {/* Dr. Chen */}
-      <button className="flex items-center gap-1.5 px-2 py-1 rounded-[2px] cursor-pointer hover:bg-white/10 transition-colors">
+      <div className="flex items-center gap-1.5 px-2 py-1">
         <div className="w-5 h-5 rounded-full bg-[#2E5A8A] flex items-center justify-center shrink-0">
           <span className="text-white text-[8px] font-bold select-none">DC</span>
         </div>
         <span className="text-[#BFD4E8] text-[11px]">Dr. Chen</span>
-        <span className="text-[#4B6A88] text-[10px] leading-none">▾</span>
+      </div>
+      <div className="w-px h-4 bg-white/15 shrink-0" />
+      <button
+        onClick={() => navigate({ to: '/login' })}
+        className="flex items-center gap-1 px-2 py-1 rounded-[2px] cursor-pointer hover:bg-white/10 transition-colors"
+      >
+        <span className="text-[#8BACC4] text-[11px]">Sign out</span>
       </button>
     </div>
   )

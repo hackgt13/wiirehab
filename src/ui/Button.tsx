@@ -10,10 +10,10 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantStyles: Record<Variant, string> = {
-  primary: 'bg-[#6FB8C4] text-[#232B2F] font-semibold hover:bg-[#86C5CF] active:bg-[#5AA8B4]',
-  outline: 'border border-[#3D484E] text-[#E4E9EB] hover:border-[#6FB8C4] hover:text-[#6FB8C4]',
-  ghost:   'text-[#A3B0B6] hover:text-[#E4E9EB] hover:bg-[#323C41]',
-  accent:  'bg-[#9CC2B5] text-[#232B2F] font-semibold hover:bg-[#6FB8C4]',
+  primary: 'bg-[#1666C0] text-white font-semibold hover:bg-[#1255A3] active:bg-[#0E4589]',
+  outline: 'border border-[#B8C4CE] text-[#1A1D23] hover:border-[#1666C0] hover:text-[#1666C0]',
+  ghost:   'text-[#5A6472] hover:text-[#1A1D23] hover:bg-[#DDE2E8]',
+  accent:  'bg-[#1666C0] text-white font-semibold hover:bg-[#1255A3]',
 }
 
 const sizeStyles: Record<Size, string> = {
